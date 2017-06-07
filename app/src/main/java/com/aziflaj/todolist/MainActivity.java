@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -24,7 +25,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private TaskDbHelper mHelper;
     private ListView mTaskListView;
-    private ArrayAdapter<String> mAdapter;
+    private ArrayList<TaskObject> dataModels;
+    //private ArrayAdapter<TaskObject> mAdapter;
+    private static CustomAdapter mAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +37,10 @@ public class MainActivity extends AppCompatActivity {
         mHelper = new TaskDbHelper(this);
         mTaskListView = (ListView) findViewById(R.id.list_todo);
 
-        updateUI();
+        dataModels = updateData();
+        mAdapter = new CustomAdapter(dataModels, MainActivity.this);
+
+        mTaskListView.setAdapter(mAdapter);
     }
 
     @Override
@@ -47,24 +53,32 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_add_task:
-                final EditText taskEditText = new EditText(this);
+                final EditText taskEditTextTitle = new EditText(this);
+                final EditText taskEditTextNotice = new EditText(this);
+
+                final LayoutInflater inflater = this.getLayoutInflater();
+                final View view = inflater.inflate(R.layout.dialog_newtask, null);
+
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setTitle("Add a new task")
                         .setMessage("What do you want to do next?")
-                        .setView(taskEditText)
+                        .setView(view)
                         .setPositiveButton("Add", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                String task = String.valueOf(taskEditText.getText());
+                                EditText title = (EditText) view.findViewById(R.id.taskTitle);
+                                EditText notice = (EditText) view.findViewById(R.id.taskNotice);
+
                                 SQLiteDatabase db = mHelper.getWritableDatabase();
                                 ContentValues values = new ContentValues();
-                                values.put(TaskContract.TaskEntry.COL_TASK_TITLE, task);
+                                values.put(TaskContract.TaskEntry.COL_TASK_TITLE, title.getText().toString());
+                                values.put(TaskContract.TaskEntry.COL_TASK_NOTICE, notice.getText().toString());
                                 db.insertWithOnConflict(TaskContract.TaskEntry.TABLE,
                                         null,
                                         values,
                                         SQLiteDatabase.CONFLICT_REPLACE);
                                 db.close();
-                                updateUI();
+                                mAdapter.updateAdapter();
                             }
                         })
                         .setNegativeButton("Cancel", null)
@@ -77,42 +91,23 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void deleteTask(View view) {
-        View parent = (View) view.getParent();
-        TextView taskTextView = (TextView) parent.findViewById(R.id.task_title);
-        String task = String.valueOf(taskTextView.getText());
-        SQLiteDatabase db = mHelper.getWritableDatabase();
-        db.delete(TaskContract.TaskEntry.TABLE,
-                TaskContract.TaskEntry.COL_TASK_TITLE + " = ?",
-                new String[]{task});
-        db.close();
-        updateUI();
-    }
-
-    private void updateUI() {
-        ArrayList<String> taskList = new ArrayList<>();
+    private ArrayList<TaskObject> updateData() {
+        ArrayList<TaskObject> list = new ArrayList<>();
         SQLiteDatabase db = mHelper.getReadableDatabase();
         Cursor cursor = db.query(TaskContract.TaskEntry.TABLE,
-                new String[]{TaskContract.TaskEntry._ID, TaskContract.TaskEntry.COL_TASK_TITLE},
+                new String[]{TaskContract.TaskEntry._ID, TaskContract.TaskEntry.COL_TASK_TITLE, TaskContract.TaskEntry.COL_TASK_NOTICE},
                 null, null, null, null, null);
         while (cursor.moveToNext()) {
-            int idx = cursor.getColumnIndex(TaskContract.TaskEntry.COL_TASK_TITLE);
-            taskList.add(cursor.getString(idx));
-        }
-
-        if (mAdapter == null) {
-            mAdapter = new ArrayAdapter<>(this,
-                    R.layout.item_todo,
-                    R.id.task_title,
-                    taskList);
-            mTaskListView.setAdapter(mAdapter);
-        } else {
-            mAdapter.clear();
-            mAdapter.addAll(taskList);
-            mAdapter.notifyDataSetChanged();
+            TaskObject taskObject = new TaskObject(
+                    cursor.getInt(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry._ID)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry.COL_TASK_TITLE)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry.COL_TASK_NOTICE)));
+            list.add(taskObject);
         }
 
         cursor.close();
         db.close();
+
+        return list;
     }
 }
