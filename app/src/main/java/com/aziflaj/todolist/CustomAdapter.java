@@ -13,8 +13,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.aziflaj.todolist.db.TaskContract;
-import com.aziflaj.todolist.db.TaskDbHelper;
+import com.aziflaj.todolist.sp.TaskSpHelper;
 
 import java.util.ArrayList;
 
@@ -26,7 +25,7 @@ public class CustomAdapter extends ArrayAdapter<TaskObject> implements View.OnCl
 
     private ArrayList<TaskObject> dataSet;
     Context mContext;
-    private TaskDbHelper mHelper;
+    private TaskSpHelper mHelper;
 
     // View lookup cache
     private static class ViewHolder {
@@ -34,12 +33,12 @@ public class CustomAdapter extends ArrayAdapter<TaskObject> implements View.OnCl
         Button btnDelete;
     }
 
-    public CustomAdapter(ArrayList<TaskObject> data, Context context) {
+    public CustomAdapter(ArrayList<TaskObject> data,TaskSpHelper mHelper, Context context) {
         super(context, R.layout.item_todo, data);
 
         this.dataSet = data;
         this.mContext = context;
-        this.mHelper = new TaskDbHelper(context);
+        this.mHelper = mHelper;
     }
 
     @Override
@@ -94,13 +93,7 @@ public class CustomAdapter extends ArrayAdapter<TaskObject> implements View.OnCl
         viewHolder.btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //xyz
-                SQLiteDatabase db = mHelper.getWritableDatabase();
-                db.delete(TaskContract.TaskEntry.TABLE,
-                        TaskContract.TaskEntry._ID + " = ?",
-                        new String[]{Integer.toString(taskObject.getId())});
-
-                db.close();
+                mHelper.removeTask(taskObject.getId());
                 updateAdapter();
             }
         });
@@ -108,29 +101,8 @@ public class CustomAdapter extends ArrayAdapter<TaskObject> implements View.OnCl
         return convertView;
     }
 
-    public ArrayList<TaskObject> getTaskList() {
-        ArrayList<TaskObject> newlist = new ArrayList<>();
-        SQLiteDatabase db = mHelper.getReadableDatabase();
-        Cursor cursor = db.query(TaskContract.TaskEntry.TABLE,
-                new String[]{TaskContract.TaskEntry._ID, TaskContract.TaskEntry.COL_TASK_TITLE, TaskContract.TaskEntry.COL_TASK_NOTICE},
-                null, null, null, null, null);
-        while (cursor.moveToNext()) {
-            TaskObject taskObject = new TaskObject(
-                    cursor.getInt(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry._ID)),
-                    cursor.getString(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry.COL_TASK_TITLE)),
-                    cursor.getString(cursor.getColumnIndexOrThrow(TaskContract.TaskEntry.COL_TASK_NOTICE)));
-            newlist.add(taskObject);
-        }
-
-        cursor.close();
-        db.close();
-
-        return newlist;
-    }
-
     public void updateAdapter() {
-        //TODO
-        ArrayList<TaskObject> newlist = getTaskList();
+        ArrayList<TaskObject> newlist = mHelper.getTaskList();
         dataSet.clear();
         dataSet.addAll(newlist);
         this.notifyDataSetChanged();
